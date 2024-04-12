@@ -1,0 +1,9 @@
+app:
+  title: Hello Webapp
+  version: 1.0
+
+spring:
+  web:
+    freemarker:
+      template-path: templates
+      template-encoding: UTF-8
