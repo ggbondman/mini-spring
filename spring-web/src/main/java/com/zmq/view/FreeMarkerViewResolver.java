@@ -52,7 +52,7 @@ public class FreeMarkerViewResolver implements ViewResolver {
         try {
             template = this.config.getTemplate(viewName);
         } catch (Exception e) {
-            throw new ServerErrorException(STR."View not found: \{viewName}");
+            throw new ServerErrorException("View not found: "+viewName);
         }
         PrintWriter pw = resp.getWriter();
         try {

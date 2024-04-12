@@ -36,7 +36,7 @@ public class BeanRowMapper<T> implements RowMapper<T> {
         for (Field f : clazz.getFields()) {
             String name = f.getName();
             this.fields.put(name, f);
-            out.println(STR."Add row mapping: \{name} to field \{name}");
+            out.println("Add row mapping: "+name+" to field +"+name);
         }
         for (Method m : clazz.getMethods()) {
             Parameter[] ps = m.getParameters();
@@ -45,7 +45,7 @@ public class BeanRowMapper<T> implements RowMapper<T> {
                 if (name.length() >= 4 && name.startsWith("set")) {
                     String prop = Character.toLowerCase(name.charAt(3)) + name.substring(4);
                     this.methods.put(prop, m);
-                    out.println(STR."Add row mapping: \{prop} to \{name}(\{ps[0].getType().getSimpleName()})");
+                    out.println("Add row mapping: "+prop+" to "+name+"("+ps[0].getType().getSimpleName()+")");
                 }
             }
         }
@@ -71,7 +71,7 @@ public class BeanRowMapper<T> implements RowMapper<T> {
                 }
             }
         } catch (ReflectiveOperationException e) {
-            throw new DataAccessException(STR."Could not map result set to class \{this.clazz.getName()}", e);
+            throw new DataAccessException("Could not map result set to class "+this.clazz.getName(), e);
         }
         return bean;
     }

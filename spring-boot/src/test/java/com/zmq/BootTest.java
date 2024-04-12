@@ -1,12 +1,12 @@
 package com.zmq;
 
-import com.zmq.annotation.SpringbootApplication;
+import com.zmq.annotation.Component;
 import org.junit.jupiter.api.Test;
 
 /**
  * @author zmq
  */
-@SpringbootApplication
+@Component
 public class BootTest {
 
     @Test

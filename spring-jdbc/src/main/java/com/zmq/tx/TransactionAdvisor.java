@@ -21,7 +21,7 @@ public class TransactionAdvisor implements Advisor {
     }
 
     private String getPointcutExpression(Class<?> clazz){
-        return STR."execution (* \{clazz.getName()}.*(..))";
+        return "execution (* "+clazz.getName()+".*(..))";
     }
 
     @Override

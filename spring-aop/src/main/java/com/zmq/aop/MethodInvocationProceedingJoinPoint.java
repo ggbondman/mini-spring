@@ -44,7 +44,7 @@ public class MethodInvocationProceedingJoinPoint implements ProceedingJoinPoint 
 
     @Override
     public String toShortString() {
-        return STR."execution(\{getSignature().toShortString()})";
+        return "execution("+getSignature().toShortString()+")";
     }
 
     @Override

@@ -7,17 +7,19 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
+import java.nio.file.*;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 /**
  * @author zmq
  */
 public class ResourceResolver {
+
+    private static FileSystem FILE_SYSTEM;
 
     String basePackage;
 
@@ -67,7 +69,10 @@ public class ResourceResolver {
     }
 
     Path jarUriToPath(String basePackagePath, URI jarUri) throws IOException {
-        return FileSystems.newFileSystem(jarUri, Map.of()).getPath(basePackagePath);
+        if (FILE_SYSTEM == null) {
+            FILE_SYSTEM = FileSystems.newFileSystem(jarUri, Map.of());
+        }
+        return FILE_SYSTEM.getPath(basePackagePath);
     }
 
     <R> void scanFile(boolean isJar, String base, Path root, List<R> collector, Function<Resource, R> mapper) throws IOException {

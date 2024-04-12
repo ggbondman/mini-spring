@@ -1,8 +1,8 @@
 package com.zmq;
 
+import com.zmq.annotation.Component;
 import com.zmq.annotation.EnableAspectJAutoProxy;
 import com.zmq.annotation.EnableTransactionManagement;
-import com.zmq.annotation.SpringbootApplication;
 import com.zmq.context.AnnotationConfigApplicationContext;
 import com.zmq.context.ApplicationContext;
 import com.zmq.property.PropertyResolver;
@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * @author zmq
  */
 
-@SpringbootApplication
+@Component
 @EnableAspectJAutoProxy
 @EnableTransactionManagement
 public class JdbcTest {

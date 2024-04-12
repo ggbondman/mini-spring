@@ -23,6 +23,8 @@ import static java.lang.System.out;
  */
 public class AnnotationConfigApplicationContext implements ApplicationContext {
 
+    private final static String SPRING_SCAN_PATH = "com.zmq";
+
     protected final PropertyResolver propertyResolver;
 
     @lombok.Getter
@@ -128,7 +130,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             value = method.getAnnotation(Value.class);
             Parameter[] parameters = method.getParameters();
             if (parameters.length != 1) {
-                throw new BeanDefinitionException(STR."Cannot inject a non-setter method \{method.getName()} for bean '\{def.getName()}': \{def.getBeanClass().getName()}");
+                throw new BeanDefinitionException("Cannot inject a non-setter method " + method.getName() + " for bean '" + def.getName() + "': " + def.getBeanClass().getName());
             }
             requiredType = parameters[0].getType();
             method.setAccessible(true);
@@ -141,13 +143,13 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             field.setAccessible(true);
         }
         if (autowired != null && value != null) {
-            throw new BeanDefinitionException(STR."Cannot specify both @Autowired and @Value when inject \{def.getBeanClass().getSimpleName()}.\{member.getName()} for bean '\{def.getName()}': \{def.getBeanClass().getName()}");
+            throw new BeanDefinitionException("Cannot specify both @Autowired and @Value when inject " + def.getBeanClass().getSimpleName() + "." + member.getName() + " for bean '" + def.getName() + "': " + def.getBeanClass().getName());
         }
         if (value != null) {
             // @Value注入
             Object property = this.propertyResolver.getProperty(value.value(), requiredType);
             if (method != null) {
-                out.println(STR."Method injection: \{def.getBeanClass().getName()}.\{method.getName()} (\{property})");
+                out.println("Method injection: " + def.getBeanClass().getName() + "." + method.getName() + " (" + property + ")");
                 method.invoke(def.getInstance(), property);
             } else {
                 field.set(def.getInstance(), property);
@@ -158,17 +160,17 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             boolean required = autowired.value();
             BeanDefinition dependsOnBean = dependsOnBeanName.isEmpty() ? findBeanDefinition(requiredType) : findBeanDefinition(dependsOnBeanName, requiredType);
             if (required && dependsOnBean == null) {
-                throw new UnsatisfiedDependencyException(STR."Dependency bean not found when inject \{def.getBeanClass().getSimpleName()}.\{member.getName()} for bean '\{def.getName()}': \{def.getBeanClass().getName()}.");
+                throw new UnsatisfiedDependencyException("Dependency bean not found when inject " + def.getBeanClass().getSimpleName() + "." + member.getName() + " for bean '" + def.getName() + "': " + def.getBeanClass().getName() + ".");
             }
             if (dependsOnBean != null) {
                 Object instance = dependsOnBean.getInstance();
                 if (method != null) {
                     // 获取依赖Bean的实例
                     // 如果依赖Bean尚未初始化，则递归调用初始化该Bean
-                    out.println(STR."Method injection: \{def.getBeanClass().getName()}.\{method.getName()}  (\{dependsOnBeanName})");
+                    out.println("Method injection: " + def.getBeanClass().getName() + "." + method.getName() + "  (" + dependsOnBeanName + ")");
                     method.invoke(def.getInstance(), instance);
                 } else {
-                    out.println(STR."Field injection: \{def.getBeanClass().getName()}.\{field.getName()} = \{dependsOnBeanName}");
+                    out.println("Field injection: " + def.getBeanClass().getName() + "." + field.getName() + " = " + dependsOnBeanName);
                     field.set(def.getInstance(), instance);
                 }
             }
@@ -181,11 +183,11 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     void checkInjectedFieldOrMethod(Member m) {
         int mod = m.getModifiers();
         if (Modifier.isStatic(mod)) {
-            throw new BeanDefinitionException(STR."Cannot inject static field: \{m}");
+            throw new BeanDefinitionException("Cannot inject static field: " + m);
         }
         if (Modifier.isFinal(mod)) {
             if (m instanceof Field field) {
-                throw new BeanDefinitionException(STR."Cannot inject final field: \{field}");
+                throw new BeanDefinitionException("Cannot inject final field: " + field);
             }
             if (m instanceof Method) {
                 out.println("Inject final method should be careful because it is not called on target bean when bean is proxied and may cause NullPointerException.");
@@ -224,7 +226,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
                 BeanDefinition dependsOnBean = dependsOnBeanName.isEmpty() ? findBeanDefinition(parameterType) : findBeanDefinition(dependsOnBeanName, parameterType);
                 // required==ture时必须获得非空的Bean
                 if (required && dependsOnBean == null) {
-                    throw new BeanCreationException(STR."Missing autowired bean with type '\{parameterType.getName()}' when create bean 'd\{def.getName()}': \{def.getBeanClass().getName()}.");
+                    throw new BeanCreationException("Missing autowired bean with type '" + parameterType.getName() + "' when create bean 'd" + def.getName() + "': " + def.getBeanClass().getName() + ".");
                 }
                 if (dependsOnBean != null) {
                     // 获取依赖Bean的实例
@@ -246,7 +248,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             try {
                 instance = getSuitableConstructor(def.getBeanClass()).newInstance(args);
             } catch (Exception e) {
-                throw new BeanCreationException(STR."Exception when create bean '\{def.getName()}': \{e}");
+                throw new BeanCreationException("Exception when create bean '" + def.getName() + "': " + e);
             }
         } else {
             // 用@Bean工厂方法创建
@@ -254,7 +256,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
                 Object factoryInstance = findBeanDefinition(def.getFactoryBeanName()).getInstance();
                 instance = def.getFactoryMethod().invoke(factoryInstance, args);
             } catch (Exception e) {
-                throw new BeanCreationException(STR."Exception when create bean '\{def.getName()}': \{e}");
+                throw new BeanCreationException("Exception when create bean '" + def.getName() + "': " + e);
             }
         }
         // 调用BeanPostProcessor处理Bean，包括生成代理对象
@@ -267,11 +269,11 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         for (BeanPostProcessor beanPostProcessor : this.beanPostProcessors) {
             Object processed = beanPostProcessor.postProcessBeforeInitialization(instance, beanName);
             if (processed == null) {
-                throw new BeanCreationException(STR."PostBeanProcessor returns null when process bean '\{beanName}' by \{beanPostProcessor}");
+                throw new BeanCreationException("PostBeanProcessor returns null when process bean '" + beanName + "' by " + beanPostProcessor);
             }
             // 如果一个BeanPostProcessor替换了原始Bean，则更新Bean的引用
             if (instance != processed) {
-                out.println(STR."Bean '\{beanName}' was replaced by post processor \{beanPostProcessor}.");
+                out.println("Bean '" + beanName + "' was replaced by post processor " + beanPostProcessor + ".");
                 instance = processed;
             }
         }
@@ -282,11 +284,11 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         for (BeanPostProcessor beanPostProcessor : this.beanPostProcessors) {
             Object processed = beanPostProcessor.postProcessAfterInitialization(instance, beanName);
             if (processed == null) {
-                throw new BeanCreationException(STR."PostBeanProcessor returns null when process bean '\{beanName}' by \{beanPostProcessor}");
+                throw new BeanCreationException("PostBeanProcessor returns null when process bean '" + beanName + "' by " + beanPostProcessor);
             }
             // 如果一个BeanPostProcessor替换了原始Bean，则更新Bean的引用
             if (instance != processed) {
-                out.println(STR."Bean '\{beanName}' was replaced by post processor \{beanPostProcessor}.");
+                out.println("Bean '" + beanName + "' was replaced by post processor " + beanPostProcessor + ".");
                 instance = processed;
             }
         }
@@ -301,19 +303,19 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         Autowired autowired = parameter.isAnnotationPresent(Autowired.class) ? parameter.getAnnotation(Autowired.class) : null;
         if (def.isConfiguration() && autowired != null) {
             throw new BeanCreationException(
-                    STR."Cannot specify @Autowired when create @Configuration bean '\{def.getName()}': \{def.getBeanClass().getName()}.");
+                    "Cannot specify @Autowired when create @Configuration bean '" + def.getName() + "': " + def.getBeanClass().getName() + ".");
         }
         // BeanPostProcessor不能依赖其他Bean，不允许使用@Autowired创建
         if (def.isBeanPostProcessor() && autowired != null) {
             throw new BeanCreationException(
-                    STR."Cannot specify @Autowired when create BeanPostProcessor '\{def.getName()}': \{def.getBeanClassName()}.");
+                    "Cannot specify @Autowired when create BeanPostProcessor '" + def.getName() + "': " + def.getBeanClassName() + ".");
         }
         // 参数需要@Value或@Autowired两者之一，不能同时拥有
         if (value != null && autowired != null) {
-            throw new BeanCreationException(STR."Cannot specify both @Autowired and @Value when create bean '\{def.getName()}': \{def.getBeanClass().getName()}");
+            throw new BeanCreationException("Cannot specify both @Autowired and @Value when create bean '" + def.getName() + "': " + def.getBeanClass().getName());
         }
         if (value == null && autowired == null) {
-            throw new BeanCreationException(STR."Must specify @Autowired or @Value when create bean '\{def.getName()}': \{def.getBeanClass().getName()}");
+            throw new BeanCreationException("Must specify @Autowired or @Value when create bean '" + def.getName() + "': " + def.getBeanClass().getName());
         }
         return value != null ? value : autowired;
     }
@@ -326,7 +328,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     private void checkDuplicateBean(String beanName) {
 
         if (!this.creatingBean.add(beanName)) {
-            throw new UnsatisfiedDependencyException(STR."Duplicately create bean '\{beanName}'");
+            throw new UnsatisfiedDependencyException("Duplicately create bean '" + beanName + "'");
         }
     }
 
@@ -344,7 +346,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         }
         Constructor<?>[] array = Arrays.stream(constructors).filter(constructor -> constructor.getParameterCount() == 0).toArray(Constructor<?>[]::new);
         if (array.length == 0) {
-            throw new BeanCreationException(STR."Failed to instantiate [\{beanType.getName()}]: No default constructor found");
+            throw new BeanCreationException("Failed to instantiate [" + beanType.getName() + "]: No default constructor found");
         }
         return array[0];
     }
@@ -367,9 +369,9 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             return primaryDefs.getFirst();
         }
         if (primaryDefs.isEmpty()) {
-            throw new NoUniqueBeanDefinitionException(STR."Multiple bean with type '\{type.getName()}' found, but no @Primary specified.");
+            throw new NoUniqueBeanDefinitionException("Multiple bean with type '" + type.getName() + "' found, but no @Primary specified.");
         } else {
-            throw new NoUniqueBeanDefinitionException(STR."Multiple bean with type '\{type.getName()}' found, and multiple @Primary specified.");
+            throw new NoUniqueBeanDefinitionException("Multiple bean with type '" + type.getName() + "' found, and multiple @Primary specified.");
         }
     }
 
@@ -379,7 +381,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         }
         BeanDefinition beanDefinition = this.beanDefinitions.get(name);
         if (!type.isAssignableFrom(beanDefinition.getBeanClass())) {
-            throw new BeanNotOfRequiredTypeException(STR."Autowire required type '\{type.getName()}' but bean '\{name}' has actual type '\{beanDefinition.getBeanClass().getName()}'");
+            throw new BeanNotOfRequiredTypeException("Autowire required type '" + type.getName() + "' but bean '" + name + "' has actual type '" + beanDefinition.getBeanClass().getName() + "'");
         }
         return beanDefinition;
     }
@@ -433,23 +435,22 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         }
     }
 
-    private BeanDefinition doCreateBeanDefinition(ClassMetaData classMetaData){
+    private BeanDefinition doCreateBeanDefinition(ClassMetaData classMetaData) {
         if (classMetaData.isAbstract()) {
-            throw new BeanDefinitionException(STR."@Component class \{classMetaData.getIntrospectedClass().getName()} must not be abstract.");
+            throw new BeanDefinitionException("@Component class " + classMetaData.getIntrospectedClass().getName() + " must not be abstract.");
         }
         if (classMetaData.isPrivate()) {
-            throw new BeanDefinitionException(STR."@Component class \{classMetaData.getIntrospectedClass().getName()} must not be private.");
+            throw new BeanDefinitionException("@Component class " + classMetaData.getIntrospectedClass().getName() + " must not be private.");
         }
-        if (classMetaData.hasAnnotation(Configuration.class)&&BeanPostProcessor.class.isAssignableFrom(classMetaData.getIntrospectedClass())) {
-            throw new BeanDefinitionException(STR."@Configuration class '\{classMetaData.getIntrospectedClass().getName()}' cannot be BeanPostProcessor.");
+        if (classMetaData.hasAnnotation(Configuration.class) && BeanPostProcessor.class.isAssignableFrom(classMetaData.getIntrospectedClass())) {
+            throw new BeanDefinitionException("@Configuration class '" + classMetaData.getIntrospectedClass().getName() + "' cannot be BeanPostProcessor.");
         }
         return new BeanDefinition(classMetaData);
     }
 
 
-
     private void importBeanDefinition(Class<?> clazz) {
-        out.println("import bean: "+clazz.getName());
+        out.println("import bean: " + clazz.getName());
         ClassMetaData classMetaData = new DefaultClassMetaData(clazz);
         BeanDefinition def = doCreateBeanDefinition(classMetaData);
         addBeanDefinitions(def);
@@ -470,7 +471,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
      */
     void addBeanDefinitions(BeanDefinition def) throws BeanDefinitionException {
         if (beanDefinitions.put(def.getName(), def) != null) {
-            throw new BeanDefinitionException(STR."Duplicate bean name: \{def.getName()}");
+            throw new BeanDefinitionException("Duplicate bean name: " + def.getName());
         }
     }
 
@@ -491,13 +492,13 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             for (Method method : classMetaData.getMethodsByAnnotation(Bean.class)) {
                 int mod = method.getModifiers();
                 if (Modifier.isAbstract(mod)) {
-                    throw new BeanDefinitionException(STR."@Bean method \{def.getName()}.\{method.getName()} must not be abstract.");
+                    throw new BeanDefinitionException("@Bean method " + def.getName() + "." + method.getName() + " must not be abstract.");
                 }
                 if (Modifier.isFinal(mod)) {
-                    throw new BeanDefinitionException(STR."@Bean method \{def.getName()}.\{method.getName()} must not be final.");
+                    throw new BeanDefinitionException("@Bean method " + def.getName() + "." + method.getName() + " must not be final.");
                 }
                 if (Modifier.isPrivate(mod)) {
-                    throw new BeanDefinitionException(STR."@Bean method \{def.getName()}.\{method.getName()} must not be private.");
+                    throw new BeanDefinitionException("@Bean method " + def.getName() + "." + method.getName() + " must not be private.");
                 }
                 Class<?> beanType = getBeanType(def, method);
                 ClassMetaData beanMetaData = new DefaultClassMetaData(beanType);
@@ -510,10 +511,10 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     private static Class<?> getBeanType(BeanDefinition def, Method method) throws BeanDefinitionException {
         Class<?> beanClass = method.getReturnType();
         if (beanClass.isPrimitive()) {
-            throw new BeanDefinitionException(STR."@Bean method \{def.getName()}.\{method.getName()} must not return primitive type.");
+            throw new BeanDefinitionException("@Bean method " + def.getName() + "." + method.getName() + " must not return primitive type.");
         }
         if (beanClass == void.class || beanClass == Void.class) {
-            throw new BeanDefinitionException(STR."@Bean method \{def.getName()}.\{method.getName()} must not return void.");
+            throw new BeanDefinitionException("@Bean method " + def.getName() + "." + method.getName() + " must not return void.");
         }
         return beanClass;
     }
@@ -524,8 +525,9 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
      * @param configClass 配置类
      * @return {@link Set}<{@link String}> 所有Bean的Class类型
      */
-    private static Set<String> scanForClassNames(Class<?> configClass) {
+    private Set<String> scanForClassNames(Class<?> configClass) {
         List<String> scanPackages = new ArrayList<>();
+        scanPackages.add(SPRING_SCAN_PATH);
         ClassMetaData classMetaData = new DefaultClassMetaData(configClass);
         if (classMetaData.hasAnnotation(ComponentScans.class)) {
             ComponentScans componentScans = classMetaData.getAnnotation(ComponentScans.class);
@@ -536,7 +538,6 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             scanPackages.addAll(Arrays.asList(classMetaData.getAnnotation(ComponentScan.class).value()));
         } else {
             scanPackages.add(configClass.getPackageName());
-
         }
         Set<String> classNameSet = new HashSet<>();
         for (String scanPackage : scanPackages) {
@@ -567,7 +568,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     public <T> T getBean(String name) {
         BeanDefinition def = findBeanDefinition(name);
         if (def == null) {
-            throw new NoSuchBeanDefinitionException(STR."No bean defined with name '\{name}'.");
+            throw new NoSuchBeanDefinitionException("No bean defined with name '" + name + "'.");
         }
         return (T) def.getInstance();
     }
@@ -577,11 +578,11 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     public <T> T getBean(String name, Class<T> requiredType) {
         BeanDefinition def = findBeanDefinition(name);
         if (def == null) {
-            throw new NoSuchBeanDefinitionException(STR."No bean defined with name '\{name}'.");
+            throw new NoSuchBeanDefinitionException("No bean defined with name '" + name + "'.");
         }
         Object instance = def.getInstance();
         if (!requiredType.isAssignableFrom(instance.getClass())) {
-            throw new NoSuchBeanDefinitionException(STR."No bean defined with name '\{name}' and type '\{requiredType.getName()}', but a bean of the same name found");
+            throw new NoSuchBeanDefinitionException("No bean defined with name '" + name + "' and type '" + requiredType.getName() + "', but a bean of the same name found");
         }
         return (T) def.getInstance();
     }
@@ -591,7 +592,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     public <T> T getBean(Class<T> requiredType) {
         BeanDefinition def = findBeanDefinition(requiredType);
         if (def == null) {
-            throw new NoSuchBeanDefinitionException(STR."No bean defined with type '\{requiredType}'.");
+            throw new NoSuchBeanDefinitionException("No bean defined with type '" + requiredType + "'.");
         }
         return (T) def.getInstance();
     }
@@ -604,7 +605,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     @Override
     @SuppressWarnings("unchecked")
     public <T> List<T> getBeans(Class<T> clazz) {
-        return (List<T>) this.beans.values().stream().filter(bean->clazz.isAssignableFrom(bean.getClass())).toList();
+        return (List<T>) this.beans.values().stream().filter(bean -> clazz.isAssignableFrom(bean.getClass())).toList();
     }
 
 
@@ -633,7 +634,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
 
     @Override
     public void close() {
-        out.println(STR."Closing \{this.getClass().getName()}...");
+        out.println("Closing " + this.getClass().getName() + "...");
         this.beanDefinitions.values().forEach(def -> {
             ClassMetaData metaData = new DefaultClassMetaData(def.getBeanClass());
             Method[] methods = metaData.getMethodsByAnnotation(PreDestroy.class);
@@ -646,6 +647,6 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             }
         });
         this.beanDefinitions.clear();
-        out.println(STR."\{this.getClass().getName()} closed.");
+        out.println("" + this.getClass().getName() + " closed.");
     }
 }

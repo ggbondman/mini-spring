@@ -1,7 +1,8 @@
 package com.zmq.controller;
 
 import com.zmq.annotation.Component;
-import com.zmq.exception.AopConfigException;
+
+import static java.lang.System.out;
 
 /**
  * @author zmq
@@ -10,6 +11,7 @@ import com.zmq.exception.AopConfigException;
 public class TestController {
 
     public String testAspect(){
-        throw new AopConfigException("测试afterThrowing");
+        out.println("测试aspect");
+        return "success";
     }
 }

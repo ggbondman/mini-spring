@@ -3,7 +3,6 @@ package com.zmq.test;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Splitter;
-import com.zmq.ControllerConfiguration;
 import com.zmq.DispatcherServlet;
 import com.zmq.config.WebMvcConfiguration;
 import com.zmq.context.AnnotationConfigApplicationContext;
@@ -96,8 +95,8 @@ public class WebTest {
     }
 
     void printResponse(MockHttpServletResponse response) throws UnsupportedEncodingException {
-        out.println(STR."statusCode: \{response.getStatus()}");
-        out.println(STR."content: \{response.getContentAsString()}");
+        out.println("statusCode: "+response.getStatus());
+        out.println("content: "+response.getContentAsString());
         out.println();
 
     }
@@ -107,14 +106,14 @@ public class WebTest {
         this.ctx = createMockServletContext();
         WebMvcConfiguration.setServletContext(this.ctx);
         var propertyResolver = createPropertyResolver();
-        var applicationContext = new AnnotationConfigApplicationContext(ControllerConfiguration.class, propertyResolver);
+        var applicationContext = new AnnotationConfigApplicationContext(WebTest.class, propertyResolver);
         this.dispatcherServlet = new DispatcherServlet(applicationContext, propertyResolver);
         this.dispatcherServlet.init();
     }
 
     MockServletContext createMockServletContext() {
         Path path = Path.of("./src/test/resources").toAbsolutePath().normalize();
-        var ctx = new MockServletContext(STR."file://\{path.toString()}");
+        var ctx = new MockServletContext("file://"+path.toString());
         ctx.setRequestCharacterEncoding("UTF-8");
         ctx.setResponseCharacterEncoding("UTF-8");
         return ctx;

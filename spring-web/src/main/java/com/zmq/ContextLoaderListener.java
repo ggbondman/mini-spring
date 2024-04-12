@@ -39,7 +39,7 @@ public class ContextLoaderListener implements ServletContextListener {
     }
 
     ApplicationContext createApplicationContext(String configClassName, PropertyResolver propertyResolver) {
-        out.println(STR."init ApplicationContext by configuration: \{configClassName}");
+        out.println("init ApplicationContext by configuration: "+configClassName);
         if (configClassName == null || configClassName.isEmpty()) {
             throw new RuntimeException("Cannot init ApplicationContext for missing init param name: configuration");
         }

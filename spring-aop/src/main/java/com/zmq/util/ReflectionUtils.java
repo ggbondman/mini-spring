@@ -55,7 +55,7 @@ public abstract class ReflectionUtils {
                 callback.doWith(method);
             }
             catch (IllegalAccessException ex) {
-                throw new IllegalStateException(STR."Not allowed to access method '\{method.getName()}': \{ex}");
+                throw new IllegalStateException("Not allowed to access method '"+method.getName()+"': "+ex);
             }
         }
         // Keep backing up the inheritance hierarchy.

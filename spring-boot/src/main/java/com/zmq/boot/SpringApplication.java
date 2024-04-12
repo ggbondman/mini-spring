@@ -17,6 +17,8 @@ import java.util.Set;
  */
 public class SpringApplication {
 
+
+
     private static final String BASE_DIR = "target/classes";
 
     private static final String WEB_DIR = "src/test/webapp";

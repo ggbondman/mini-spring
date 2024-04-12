@@ -50,7 +50,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager,
                     connection.commit();
                     return r;
                 } catch (Exception e) {
-                    out.println(STR."will rollback transaction for caused exception: \{e.getCause() == null ? "null" : e.getCause().getClass().getName()}");
+                    out.println("will rollback transaction for caused exception: "+e.getCause() == null ? "null" : e.getCause().getClass().getName());
                     TransactionException te = new TransactionException(e.getCause());
                     try {
                         connection.rollback();

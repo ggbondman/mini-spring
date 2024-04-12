@@ -81,7 +81,7 @@ public class PropertyResolver {
      */
     public String getRequiredProperty(String key) {
         String value = getProperty(key);
-        return Objects.requireNonNull(value, STR."Property \"\{key}\" not found ");
+        return Objects.requireNonNull(value, "Property \""+key+"\" not found ");
     }
 
     public String parseValue(String value) {
@@ -110,7 +110,7 @@ public class PropertyResolver {
     public <T> T convert(String value, Class<T> targetType) {
         Function<String, Object> converter = converters.get(targetType);
         if (converter == null) {
-            throw new IllegalArgumentException(STR."Unsupported value type: \{targetType.getName()}");
+            throw new IllegalArgumentException("Unsupported value type: "+targetType.getName());
         }
         return (T) converter.apply(value);
     }
@@ -128,7 +128,7 @@ public class PropertyResolver {
         }
         Object value = this.properties.get(key);
         if (value instanceof List){
-            throw new IllegalArgumentException(STR."The key '\{key}' has duplicate values");
+            throw new IllegalArgumentException("The key '"+key+"' has duplicate values");
         }
         if (value != null) {
             return parseValue(value.toString());

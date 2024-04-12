@@ -1,6 +1,6 @@
 package com.zmq;
 
-import com.zmq.annotation.SpringbootApplication;
+import com.zmq.annotation.Component;
 import com.zmq.context.AnnotationConfigApplicationContext;
 import com.zmq.controller.TestController;
 import com.zmq.property.PropertyResolver;
@@ -11,18 +11,17 @@ import java.util.Properties;
 /**
  * @author zmq
  */
-@SpringbootApplication
+@Component
 public class AopTest {
 
     @Test
     void testAllAspect(){
-        AnnotationConfigApplicationContext context = null;
-        context = new AnnotationConfigApplicationContext(AopTest.class, new PropertyResolver(new Properties()));
-        TestController controller = context.getBean("TestController",TestController.class);
-        controller.testAspect();
+        try(AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(AopTest.class, new PropertyResolver(new Properties()))){
+            TestController controller = context.getBean("testController", TestController.class);
+            controller.testAspect();
+        }
+
     }
-
-
 }
 
 

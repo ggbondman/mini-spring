@@ -72,7 +72,7 @@ public class DispatcherServlet extends HttpServlet {
                 continue;
             }
             if (controller != null && restController != null) {
-                throw new ServletException(STR."Found @Controller and @RestController on class: \{beanClass.getName()}");
+                throw new ServletException("Found @Controller and @RestController on class: "+beanClass.getName());
             }
             isResponseBody = controller == null;
             for (Method method : classMetaData.getMethodsByAnnotation(RequestMapping.class)) {

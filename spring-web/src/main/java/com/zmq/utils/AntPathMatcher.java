@@ -108,7 +108,7 @@ public class AntPathMatcher implements PathMatcher {
     }
 
 
-    
+
     @Override
     public boolean isPattern(@Nullable String path) {
         if (path == null) {
@@ -131,13 +131,13 @@ public class AntPathMatcher implements PathMatcher {
         return false;
     }
 
-    
+
     @Override
     public boolean match(String pattern, String path) {
         return doMatch(pattern, path, true, null);
     }
 
-    
+
     @Override
     public boolean matchStart(String pattern, String path) {
         return doMatch(pattern, path, false, null);
@@ -454,7 +454,7 @@ public class AntPathMatcher implements PathMatcher {
      * <p>Assumes that {@link #match} returns {@code true} for '{@code pattern}' and '{@code path}', but
      * does <strong>not</strong> enforce this.
      */
-    
+
     @Override
     public String extractPathWithinPattern(String pattern, String path) {
         String[] patternParts = tokenizeToStringArray(pattern, this.pathSeparator, this.trimTokens, true);
@@ -478,7 +478,7 @@ public class AntPathMatcher implements PathMatcher {
         return builder.toString();
     }
 
-    
+
     @Override
     public Map<String, String> extractUriTemplateVariables(String pattern, String path) {
         Map<String, String> variables = new LinkedHashMap<>();
@@ -517,7 +517,7 @@ public class AntPathMatcher implements PathMatcher {
      * @return the combination of the two patterns
      * @throws IllegalArgumentException if the two patterns cannot be combined
      */
-    
+
     @Override
     public String combine(String pattern1, String pattern2) {
         if (Strings.isNullOrEmpty(pattern1) && Strings.isNullOrEmpty(pattern2)) {
@@ -600,7 +600,7 @@ public class AntPathMatcher implements PathMatcher {
      * @param path the full path to use for comparison
      * @return a comparator capable of sorting patterns in order of explicitness
      */
-    
+
     public Comparator<String> getPatternComparator(String path) {
         return new AntPatternComparator(path);
     }
@@ -748,7 +748,7 @@ public class AntPathMatcher implements PathMatcher {
          * @return a negative integer, zero, or a positive integer as pattern1 is
          * more specific, equally specific, or less specific than pattern2.
          */
-        
+
         public int compare(String pattern1, String pattern2) {
             PatternInfo info1 = new PatternInfo(pattern1);
             PatternInfo info2 = new PatternInfo(pattern2);
@@ -935,4 +935,3 @@ public class AntPathMatcher implements PathMatcher {
     }
 
 }
-
