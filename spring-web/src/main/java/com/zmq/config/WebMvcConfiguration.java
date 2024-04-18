@@ -5,7 +5,6 @@ import com.zmq.annotation.Bean;
 import com.zmq.annotation.Configuration;
 import com.zmq.annotation.Value;
 import com.zmq.view.FreeMarkerViewResolver;
-import com.zmq.view.ViewResolver;
 import jakarta.servlet.ServletContext;
 
 import java.util.Objects;
@@ -22,7 +21,7 @@ public class WebMvcConfiguration {
     }
 
     @Bean
-    public ViewResolver viewResolver(
+    public FreeMarkerViewResolver viewResolver(
             @Autowired ServletContext servletContext,
             @Value("${spring.web.freemarker.template-path:/templates}") String templatePath,
             @Value("${spring.web.freemarker.template-encoding:UTF-8}") String templateEncoding) {

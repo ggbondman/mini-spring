@@ -23,7 +23,6 @@ public class DefaultClassMetaData implements ClassMetaData {
         this.annotationsMap = findAllAnnotations(this.clazz);
         findAllMethodAnnotations(this.clazz);
         findAllFieldAnnotations(this.clazz);
-
     }
 
     private Map<Class<?>, AnnotationMapping> findAllAnnotations(Class<?> annotationClass) {
@@ -42,10 +41,11 @@ public class DefaultClassMetaData implements ClassMetaData {
         if (clazz == null) {
             return;
         }
-        Method[] methods = clazz.getMethods();
+        Method[] methods = clazz.getDeclaredMethods();
         for (Method method : methods) {
             Annotation[] annotations = method.getAnnotations();
             for (Annotation annotation : annotations) {
+                method.setAccessible(true);
                 List<Method> list = this.methodAnnotationsMap.getOrDefault(annotation.annotationType(), new ArrayList<>());
                 list.add(method);
                 this.methodAnnotationsMap.put(annotation.annotationType(), list);
@@ -58,8 +58,9 @@ public class DefaultClassMetaData implements ClassMetaData {
         if (clazz == null) {
             return;
         }
-        Field[] fields = this.clazz.getFields();
+        Field[] fields = clazz.getDeclaredFields();
         for (Field field : fields) {
+            field.setAccessible(true);
             Annotation[] annotations = field.getAnnotations();
             for (Annotation annotation : annotations) {
                 List<Field> list = this.fieldAnnotationsMap.getOrDefault(annotation.annotationType(), new ArrayList<>());
@@ -89,22 +90,8 @@ public class DefaultClassMetaData implements ClassMetaData {
     }
 
     @Override
-    public boolean hasDirectAnnotation(Class<?> clazz) {
-        return this.annotationsMap.containsKey(clazz);
-    }
-
-    @Override
     public boolean hasAnnotation(Class<?> clazz) {
         return this.allAnnotations.contains(clazz);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <A extends Annotation> A getDirectAnnotation(Class<A> clazz) {
-        if (this.annotationsMap.containsKey(clazz)) {
-            return (A) this.annotationsMap.get(clazz).annotation;
-        }
-        return null;
     }
 
     @Override
@@ -114,7 +101,10 @@ public class DefaultClassMetaData implements ClassMetaData {
             return (A) this.annotationsMap.get(clazz).annotation;
         }
         for (AnnotationMapping value : this.annotationsMap.values()) {
-            return (A) searchAnnotationMap(value, clazz);
+            Annotation annotation = searchAnnotationMap(value, clazz);
+            if (annotation!=null){
+                return (A) annotation;
+            }
         }
         return null;
     }
@@ -154,31 +144,6 @@ public class DefaultClassMetaData implements ClassMetaData {
     @Override
     public <A extends Annotation> Field[] getFieldsByAnnotation(Class<A> clazz) {
         return this.fieldAnnotationsMap.containsKey(clazz) ? this.fieldAnnotationsMap.get(clazz).toArray(new Field[0]) : new Field[0];
-    }
-
-    @Override
-    public <A extends Annotation> List<Annotation> getAnnotationsDecoratedBy(Class<A> targetAnnotation) {
-        List<Annotation> annotationList = new ArrayList<>();
-        for (Map.Entry<Class<?>, AnnotationMapping> entry : this.annotationsMap.entrySet()) {
-            if (isDecoratedBy(entry.getKey(),targetAnnotation)){
-                annotationList.add(entry.getValue().annotation);
-            }
-        }
-        return annotationList;
-    }
-
-    private <A extends Annotation> boolean isDecoratedBy(Class<?> clazz,Class<A> targetClass){
-        if (clazz.isAnnotationPresent(targetClass)){
-            return true;
-        }
-        for (Annotation annotation : clazz.getAnnotations()) {
-            if (!annotation.annotationType().getPackageName().equals("java.lang.annotation")) {
-                if (isDecoratedBy(annotation.annotationType(),targetClass)){
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     @Override

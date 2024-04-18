@@ -1,5 +1,6 @@
 package com.zmq.context;
 
+import com.google.common.base.Strings;
 import com.zmq.annotation.*;
 import com.zmq.beans.BeanDefinition;
 import com.zmq.beans.ClassMetaData;
@@ -9,7 +10,8 @@ import com.zmq.processor.BeanDefinitionPostProcessor;
 import com.zmq.processor.BeanPostProcessor;
 import com.zmq.property.PropertyResolver;
 import com.zmq.resource.ResourceResolver;
-import jakarta.annotation.PreDestroy;
+import lombok.Getter;
+import org.apache.commons.lang3.StringUtils;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
@@ -21,18 +23,16 @@ import static java.lang.System.out;
 /**
  * @author zmq
  */
-public class AnnotationConfigApplicationContext implements ApplicationContext {
+public class AnnotationConfigApplicationContext implements ConfigurableApplicationContext {
 
     private final static String SPRING_SCAN_PATH = "com.zmq";
 
     protected final PropertyResolver propertyResolver;
 
-    @lombok.Getter
+    @Getter
     protected final Map<String, BeanDefinition> beanDefinitions = new HashMap<>();
 
     protected final Map<String, Object> beans = new HashMap<>();
-
-    protected final Map<Class<?>, List<String>> beansByType = new HashMap<>();
 
     protected final Set<String> creatingBean = new HashSet<>();
     protected final List<String> beanDefinitionNames = new ArrayList<>();
@@ -44,45 +44,81 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         ApplicationContextUtils.setApplicationContext(this);
         Set<String> beanClassNames = scanForClassNames(configClass);
         createBeanDefinitions(beanClassNames);
-        invokeBeanDefinitionPostProcessor();
-        registerBeanPostProcessors();
+        applyBeanDefinitionPostProcessors();
         createConfigurationBeans();
-        createBeans();
+        registerBeanPostProcessors();
+        createNormalBeans();
         injectBeans();
+        initializeBeans();
         this.beanDefinitionNames.addAll(this.beanDefinitions.keySet());
         for (Map.Entry<String, BeanDefinition> entry : this.beanDefinitions.entrySet()) {
             this.beans.put(entry.getKey(), entry.getValue().getInstance());
         }
     }
 
-    void invokeBeanDefinitionPostProcessor() {
-        List<BeanDefinitionPostProcessor> processors = new ArrayList<>();
-        this.beanDefinitions.values().stream().filter(BeanDefinition::isBeanDefinitionPostProcessor).forEach(def -> processors.add((BeanDefinitionPostProcessor) createBeanEarlySingleton(def)));
-        for (BeanDefinitionPostProcessor processor : processors) {
-            processor.invokeBeanDefinitionPostProcessor(this);
+    private void initializeBeans() {
+        this.beanDefinitions.values().forEach(def -> {
+            Object object = getOriginTarget(def.getName(), def.getInstance());
+            if (def.getInitMethod()!=null){
+                try {
+                    def.getInitMethod().invoke(object);
+                } catch (ReflectiveOperationException e){
+                    throw new BeanInitializingException("Error initializing bean with name '" + def.getName() + "' through @PostConstruct method '" + def.getInitMethod().toGenericString() + "': " + e.getMessage(), e);
+                }
+            }
+            if (!Strings.isNullOrEmpty(def.getInitMethodName())) {
+                try {
+                    Method method = def.getBeanClass().getMethod(def.getInitMethodName());
+                    method.invoke(object);
+                } catch (ReflectiveOperationException e) {
+                    throw new BeanInitializingException("Error initializing bean with name '" + def.getName() + "' through init-method '" + def.getInitMethodName() + "': " + e.getMessage(), e);
+                }
+            }
+        });
+    }
+
+    private Object getOriginTarget(String beanName, Object bean) {
+        List<BeanPostProcessor> reversed = this.beanPostProcessors.reversed();
+        for (BeanPostProcessor beanPostProcessor : reversed) {
+            bean = beanPostProcessor.getOriginTarget(bean, beanName);
         }
+        return bean;
+    }
+
+
+    void applyBeanDefinitionPostProcessors() {
+        List<BeanDefinitionPostProcessor> processors = new ArrayList<>();
+        this.beanDefinitions.values().stream().filter(BeanDefinition::isBeanDefinitionPostProcessor).forEach(def -> processors.add((BeanDefinitionPostProcessor) createBeanAsEarlySingleton(def)));
+        this.beanDefinitions.values().forEach(def -> {
+            if (def.getInstance() == null) {
+                for (BeanDefinitionPostProcessor processor : processors) {
+                    processor.invokeBeanDefinitionPostProcessor(def);
+                }
+            }
+        });
+
     }
 
     /**
-     * 创建具有@Configuration和@Bean注解的Bean
+     * 实例化配置bean
      */
     void createConfigurationBeans() {
-        this.beanDefinitions.values().stream().filter(BeanDefinition::isConfiguration).forEach(this::createBeanEarlySingleton);
+        this.beanDefinitions.values().stream().filter(BeanDefinition::isConfiguration).forEach(this::createBeanAsEarlySingleton);
     }
 
     /**
      * 创建并注册BeanPostProcessors
      */
     void registerBeanPostProcessors() {
-        this.beanDefinitions.values().stream().filter(BeanDefinition::isBeanPostProcessor).forEach(def -> this.beanPostProcessors.add((BeanPostProcessor) createBeanEarlySingleton(def)));
+        this.beanDefinitions.values().stream().filter(BeanDefinition::isBeanPostProcessor).forEach(def -> this.beanPostProcessors.add((BeanPostProcessor) createBeanAsEarlySingleton(def)));
         this.beanPostProcessors = this.beanPostProcessors.stream().sorted(Comparator.comparingInt(BeanPostProcessor::getOrder)).toList();
     }
 
     /**
-     * 创建其他普通Bean
+     * 实例化其他普通Bean
      */
-    void createBeans() {
-        this.beanDefinitions.values().stream().filter(beanDefinition -> beanDefinition.getInstance() == null).forEach(this::createBeanEarlySingleton);
+    void createNormalBeans() {
+        this.beanDefinitions.values().stream().filter(beanDefinition -> beanDefinition.getInstance() == null).forEach(this::createBeanAsEarlySingleton);
     }
 
     /**
@@ -94,6 +130,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
 
     // 为Bean内部的字段和setter方法注入依赖
     public void injectBeans(BeanDefinition def) {
+
         ClassMetaData classMetaData = new DefaultClassMetaData(def.getBeanClass());
         Set<Member> members = new HashSet<>();
         if (classMetaData.hasFieldAnnotation(Autowired.class) || classMetaData.hasFieldAnnotation(Value.class)) {
@@ -119,11 +156,13 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
 
     public void doInjectBean(BeanDefinition def, Member member) throws InvocationTargetException, IllegalAccessException {
         checkInjectedFieldOrMethod(member);
+        Object object = getOriginTarget(def.getName(), def.getInstance());
         Autowired autowired = null;
         Value value = null;
         Class<?> requiredType = null;
-        Method method = null;
+        String dependencyBeanName = null;
         Field field = null;
+        Method method = null;
         if (member instanceof Method m) {
             method = m;
             autowired = method.getAnnotation(Autowired.class);
@@ -132,48 +171,28 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             if (parameters.length != 1) {
                 throw new BeanDefinitionException("Cannot inject a non-setter method " + method.getName() + " for bean '" + def.getName() + "': " + def.getBeanClass().getName());
             }
+            dependencyBeanName = parameters[0].getName();
             requiredType = parameters[0].getType();
-            method.setAccessible(true);
-
-        } else if (member instanceof Field f) {
-            field = f;
-            autowired = field.getAnnotation(Autowired.class);
-            value = field.getAnnotation(Value.class);
-            requiredType = field.getType();
-            field.setAccessible(true);
+        } else {
+            if (member instanceof Field f) {
+                field = f;
+                autowired = field.getAnnotation(Autowired.class);
+                value = field.getAnnotation(Value.class);
+                requiredType = field.getType();
+                field.setAccessible(true);
+                dependencyBeanName = field.getName();
+            }
         }
         if (autowired != null && value != null) {
             throw new BeanDefinitionException("Cannot specify both @Autowired and @Value when inject " + def.getBeanClass().getSimpleName() + "." + member.getName() + " for bean '" + def.getName() + "': " + def.getBeanClass().getName());
         }
-        if (value != null) {
-            // @Value注入
-            Object property = this.propertyResolver.getProperty(value.value(), requiredType);
-            if (method != null) {
-                out.println("Method injection: " + def.getBeanClass().getName() + "." + method.getName() + " (" + property + ")");
-                method.invoke(def.getInstance(), property);
-            } else {
-                field.set(def.getInstance(), property);
-            }
+        Object arg = value != null ? this.propertyResolver.getProperty(value.value(), requiredType) : getAutowiredBean(autowired.required(), requiredType, dependencyBeanName, false);
+        if (method != null) {
+            out.println("Method injection: " + def.getBeanClass().getName() + "." + method.toGenericString());
+            method.invoke(object, arg);
         } else {
-            assert autowired != null;
-            String dependsOnBeanName = autowired.name();
-            boolean required = autowired.value();
-            BeanDefinition dependsOnBean = dependsOnBeanName.isEmpty() ? findBeanDefinition(requiredType) : findBeanDefinition(dependsOnBeanName, requiredType);
-            if (required && dependsOnBean == null) {
-                throw new UnsatisfiedDependencyException("Dependency bean not found when inject " + def.getBeanClass().getSimpleName() + "." + member.getName() + " for bean '" + def.getName() + "': " + def.getBeanClass().getName() + ".");
-            }
-            if (dependsOnBean != null) {
-                Object instance = dependsOnBean.getInstance();
-                if (method != null) {
-                    // 获取依赖Bean的实例
-                    // 如果依赖Bean尚未初始化，则递归调用初始化该Bean
-                    out.println("Method injection: " + def.getBeanClass().getName() + "." + method.getName() + "  (" + dependsOnBeanName + ")");
-                    method.invoke(def.getInstance(), instance);
-                } else {
-                    out.println("Field injection: " + def.getBeanClass().getName() + "." + field.getName() + " = " + dependsOnBeanName);
-                    field.set(def.getInstance(), instance);
-                }
-            }
+            out.println("Field injection: " + def.getBeanClass().getName() + "." + field.toGenericString());
+            field.set(object, arg);
         }
         // 调用BeanPostProcessor处理Bean
         def.setInstance(applyBeanPostProcessorsAfterInitialization(def.getInstance(), def.getName()));
@@ -182,6 +201,9 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
 
     void checkInjectedFieldOrMethod(Member m) {
         int mod = m.getModifiers();
+        if (m instanceof Method && !Modifier.isPublic(mod)) {
+            throw new BeanDefinitionException("Cannot inject non public method: " + m);
+        }
         if (Modifier.isStatic(mod)) {
             throw new BeanDefinitionException("Cannot inject static field: " + m);
         }
@@ -191,10 +213,9 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             }
             if (m instanceof Method) {
                 out.println("Inject final method should be careful because it is not called on target bean when bean is proxied and may cause NullPointerException.");
-                //logger.warn(
-                //        "Inject final method should be careful because it is not called on target bean when bean is proxied and may cause NullPointerException.");
             }
         }
+
     }
 
     /**
@@ -204,7 +225,8 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
      * @param def Bean的定义
      * @return {@link Object} 实例化完成的Bean，但未进行初始化
      */
-    public Object createBeanEarlySingleton(BeanDefinition def) {
+    @Override
+    public Object createBeanAsEarlySingleton(BeanDefinition def) {
         checkDuplicateBean(def.getName());
         // 创建方式：构造方法或者工厂方法
         Executable createFn = def.getFactoryBeanName() == null ? getSuitableConstructor(def.getBeanClass()) : def.getFactoryMethod();
@@ -213,56 +235,61 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         Object[] args = new Object[parameters.length];
         for (int i = 0; i < parameters.length; i++) {
             // 获取@Value注解
-            Class<?> parameterType = parameters[i].getType();
             Annotation annotation = getEligibleBeanAnnotation(def, parameters[i]);
             if (annotation instanceof Value value) {
                 // 通过@Value注解注入
-                args[i] = this.propertyResolver.getProperty(value.value(), parameterType);
-            } else if (annotation instanceof Autowired autowired) {
-                // 通过@Autowired注解注入
-                String dependsOnBeanName = autowired.name();
-                boolean required = autowired.value();
-                // 获取依赖Bean
-                BeanDefinition dependsOnBean = dependsOnBeanName.isEmpty() ? findBeanDefinition(parameterType) : findBeanDefinition(dependsOnBeanName, parameterType);
-                // required==ture时必须获得非空的Bean
-                if (required && dependsOnBean == null) {
-                    throw new BeanCreationException("Missing autowired bean with type '" + parameterType.getName() + "' when create bean 'd" + def.getName() + "': " + def.getBeanClass().getName() + ".");
-                }
-                if (dependsOnBean != null) {
-                    // 获取依赖Bean的实例
-                    Object autowiredBeanInstance = dependsOnBean.getInstance();
-                    // 如果依赖Bean尚未实例化，则递归调用实例化该Bean
-                    if (autowiredBeanInstance == null && !def.isConfiguration()) {
-                        autowiredBeanInstance = createBeanEarlySingleton(dependsOnBean);
-                    }
-                    args[i] = autowiredBeanInstance;
-                } else {
-                    args[i] = null;
+                args[i] = this.propertyResolver.getProperty(value.value(), parameters[i].getType());
+            } else {
+                try {
+                    args[i] = getAutowiredBean(annotation == null || ((Autowired) annotation).required(), parameters[i].getType(), parameters[i].getName(), def.getFactoryMethod() != null);
+                } catch (UnsatisfiedDependencyException e) {
+                    throw new UnsatisfiedDependencyException("Error creating bean with name '" + def.getName() + "': Unsatisfied dependency expressed through '" + createFn.getName() + "' parameter " + i + ": " + e.getMessage());
                 }
             }
         }
         // 创建bean实例
         Object instance;
-        if (def.getFactoryBeanName() == null) {
+        if (createFn instanceof Constructor<?> constructor) {
             // 用构造方法创建
             try {
-                instance = getSuitableConstructor(def.getBeanClass()).newInstance(args);
+                instance = constructor.newInstance(args);
             } catch (Exception e) {
-                throw new BeanCreationException("Exception when create bean '" + def.getName() + "': " + e);
+                throw new BeanCreationException("Error creating bean with name '" + def.getName() + "': " + e);
             }
         } else {
             // 用@Bean工厂方法创建
+            Method method = (Method) createFn;
             try {
-                Object factoryInstance = findBeanDefinition(def.getFactoryBeanName()).getInstance();
-                instance = def.getFactoryMethod().invoke(factoryInstance, args);
+                BeanDefinition factoryBeanDefinition = findBeanDefinition(def.getFactoryBeanName());
+                if (factoryBeanDefinition==null){
+                    throw new BeanCreationException("Error creating bean with name '" + def.getName() + "': the factory bean '"+def.getFactoryBeanName()+"' not found");
+                }
+                Object factoryInstance = factoryBeanDefinition.getInstance();
+                instance = method.invoke(factoryInstance, args);
             } catch (Exception e) {
-                throw new BeanCreationException("Exception when create bean '" + def.getName() + "': " + e);
+                throw new BeanCreationException("Error creating bean with name '" + def.getName() + "': " + e);
             }
         }
         // 调用BeanPostProcessor处理Bean，包括生成代理对象
         instance = applyBeanPostProcessorsBeforeInitialization(instance, def.getName());
         def.setInstance(instance);
         return instance;
+    }
+
+    private Object getAutowiredBean(boolean required, Class<?> requiredType, String beanName, boolean isConfiguration) {
+        BeanDefinition beanDefinition = findBeanDefinition(beanName,requiredType);
+        if (beanDefinition == null) {
+            if (required) {
+                throw new UnsatisfiedDependencyException("Dependency Bean with type '" + requiredType + "' not found");
+            }else {
+                return null;
+            }
+        }
+        if (beanDefinition.getInstance() == null && isConfiguration) {
+            return createBeanAsEarlySingleton(beanDefinition);
+        } else {
+            return beanDefinition.getInstance();
+        }
     }
 
     public Object applyBeanPostProcessorsBeforeInitialization(Object instance, String beanName) {
@@ -296,28 +323,32 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     }
 
 
+
     Annotation getEligibleBeanAnnotation(BeanDefinition def, Parameter parameter) {
         // 获取@Value注解
-        Value value = parameter.isAnnotationPresent(Value.class) ? parameter.getAnnotation(Value.class) : null;
+        Value value = parameter.getAnnotation(Value.class);
         // 获取@Autowired注解
-        Autowired autowired = parameter.isAnnotationPresent(Autowired.class) ? parameter.getAnnotation(Autowired.class) : null;
+        Autowired autowired = parameter.getAnnotation(Autowired.class);
         if (def.isConfiguration() && autowired != null) {
             throw new BeanCreationException(
                     "Cannot specify @Autowired when create @Configuration bean '" + def.getName() + "': " + def.getBeanClass().getName() + ".");
         }
-        // BeanPostProcessor不能依赖其他Bean，不允许使用@Autowired创建
-        if (def.isBeanPostProcessor() && autowired != null) {
+        // BeanPostProcessor和BeanDefinitionPostProcessor不能依赖其他Bean，不允许使用@Autowired创建
+        if ((def.isBeanPostProcessor() || def.isBeanDefinitionPostProcessor()) && autowired != null) {
             throw new BeanCreationException(
-                    "Cannot specify @Autowired when create BeanPostProcessor '" + def.getName() + "': " + def.getBeanClassName() + ".");
+                    "Cannot specify @Autowired when create BeanPostProcessor or BeanDefinitionPostProcessor'" + def.getName() + "': " + def.getBeanClassName() + ".");
         }
         // 参数需要@Value或@Autowired两者之一，不能同时拥有
         if (value != null && autowired != null) {
             throw new BeanCreationException("Cannot specify both @Autowired and @Value when create bean '" + def.getName() + "': " + def.getBeanClass().getName());
         }
-        if (value == null && autowired == null) {
-            throw new BeanCreationException("Must specify @Autowired or @Value when create bean '" + def.getName() + "': " + def.getBeanClass().getName());
+        if (value != null) {
+            return value;
         }
-        return value != null ? value : autowired;
+        if (autowired != null) {
+            return autowired;
+        }
+        return null;
     }
 
     /**
@@ -328,7 +359,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     private void checkDuplicateBean(String beanName) {
 
         if (!this.creatingBean.add(beanName)) {
-            throw new UnsatisfiedDependencyException("Duplicately create bean '" + beanName + "'");
+            throw new UnsatisfiedDependencyException("Duplicate create bean '" + beanName + "'");
         }
     }
 
@@ -351,11 +382,12 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         return array[0];
     }
 
+    @Override
     public List<BeanDefinition> findBeanDefinitions(Class<?> type) {
         return this.beanDefinitions.values().parallelStream().filter(beanDefinition -> type.isAssignableFrom(beanDefinition.getBeanClass())).toList();
     }
 
-    public BeanDefinition findBeanDefinition(Class<?> type) {
+    public BeanDefinition findRequiredBeanDefinition(Class<?> type) {
         List<BeanDefinition> defs = findBeanDefinitions(type);
         if (defs.isEmpty()) {
             return null;
@@ -369,29 +401,45 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
             return primaryDefs.getFirst();
         }
         if (primaryDefs.isEmpty()) {
-            throw new NoUniqueBeanDefinitionException("Multiple bean with type '" + type.getName() + "' found, but no @Primary specified.");
+            throw new NoUniqueBeanDefinitionException("No bean with type '" + type.getName() + "' found, but no @Primary specified.");
         } else {
             throw new NoUniqueBeanDefinitionException("Multiple bean with type '" + type.getName() + "' found, and multiple @Primary specified.");
         }
     }
 
-    public BeanDefinition findBeanDefinition(String name, Class<?> type) {
-        if (!this.beanDefinitions.containsKey(name)) {
+    @Override
+    public BeanDefinition findBeanDefinition(String name, Class<?> requiredType) {
+        List<BeanDefinition> candidateDefs = findBeanDefinitions(requiredType);
+        if (candidateDefs.isEmpty()) {
             return null;
         }
-        BeanDefinition beanDefinition = this.beanDefinitions.get(name);
-        if (!type.isAssignableFrom(beanDefinition.getBeanClass())) {
-            throw new BeanNotOfRequiredTypeException("Autowire required type '" + type.getName() + "' but bean '" + name + "' has actual type '" + beanDefinition.getBeanClass().getName() + "'");
+        if (candidateDefs.size() == 1) {
+            // 指定类型的beanDefinition只有一个，就返回这个beanDefinition
+            return candidateDefs.getFirst();
         }
-        return beanDefinition;
+        List<BeanDefinition> primaryDefs = new ArrayList<>();
+        for (BeanDefinition candidateDef : candidateDefs) {
+            if (candidateDef.isPrimary()) {
+                primaryDefs.add(candidateDef);
+            }
+            if (candidateDef.getName().equals(name)) {
+                // 找到指定name的beanDefinition则直接返回该beanDefinition
+                return candidateDef;
+            }
+        }
+        if (primaryDefs.size() == 1) {
+            return primaryDefs.getFirst();
+        }
+        if (primaryDefs.isEmpty()) {
+            throw new NoUniqueBeanDefinitionException("Multiple bean with type '" + requiredType + "' found, but no @Primary specified");
+        } else {
+            throw new NoUniqueBeanDefinitionException("Multiple bean with type '" + requiredType + "' found, and multiple @Primary specified");
+
+        }
     }
 
     public BeanDefinition findBeanDefinition(String name) {
         return this.beanDefinitions.get(name);
-    }
-
-    public void registerBeanDefinition(Class<?> clazz) {
-        addBeanDefinitions(new BeanDefinition(new DefaultClassMetaData(clazz)));
     }
 
 
@@ -417,9 +465,13 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
 
     private void createBeanDefinition(ClassMetaData classMetaData) {
         if (classMetaData.hasAnnotation(Component.class)) {
-            //获取该类的修饰符，如果是抽象类或者私有类，则抛出异常
-            BeanDefinition def = doCreateBeanDefinition(classMetaData);
-            addBeanDefinitions(def);
+            String beanName = classMetaData.getAnnotation(Component.class).value();
+            if (Strings.isNullOrEmpty(beanName)) {
+                beanName = StringUtils.uncapitalize(classMetaData.getClassName());
+            }
+            // 获取该类的修饰符，如果是抽象类或者私有类，则抛出异常
+            BeanDefinition def = doCreateBeanDefinition(beanName, classMetaData);
+            addBeanDefinition(def);
             if (def.isConfiguration()) {
                 scanFactoryMethods(def, classMetaData);
             }
@@ -435,7 +487,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         }
     }
 
-    private BeanDefinition doCreateBeanDefinition(ClassMetaData classMetaData) {
+    private BeanDefinition doCreateBeanDefinition(String beanName, ClassMetaData classMetaData) {
         if (classMetaData.isAbstract()) {
             throw new BeanDefinitionException("@Component class " + classMetaData.getIntrospectedClass().getName() + " must not be abstract.");
         }
@@ -445,22 +497,24 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
         if (classMetaData.hasAnnotation(Configuration.class) && BeanPostProcessor.class.isAssignableFrom(classMetaData.getIntrospectedClass())) {
             throw new BeanDefinitionException("@Configuration class '" + classMetaData.getIntrospectedClass().getName() + "' cannot be BeanPostProcessor.");
         }
-        return new BeanDefinition(classMetaData);
+        return new BeanDefinition(beanName, classMetaData);
     }
 
 
     private void importBeanDefinition(Class<?> clazz) {
         out.println("import bean: " + clazz.getName());
         ClassMetaData classMetaData = new DefaultClassMetaData(clazz);
-        BeanDefinition def = doCreateBeanDefinition(classMetaData);
-        addBeanDefinitions(def);
+        BeanDefinition def = doCreateBeanDefinition(StringUtils.uncapitalize(classMetaData.getClassName()), classMetaData);
+        addBeanDefinition(def);
         if (def.isConfiguration()) {
             scanFactoryMethods(def, classMetaData);
         }
         if (classMetaData.hasAnnotation(Import.class)) {
-            Class<?>[] classes = classMetaData.getAnnotation(Import.class).value();
-            for (Class<?> aClass : classes) {
-                importBeanDefinition(aClass);
+            List<Import> imports = classMetaData.getAnnotations(Import.class);
+            for (Import anImport : imports) {
+                for (Class<?> aClass : anImport.value()) {
+                    importBeanDefinition(aClass);
+                }
             }
         }
     }
@@ -469,7 +523,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     /**
      * Check and add bean definitions.
      */
-    void addBeanDefinitions(BeanDefinition def) throws BeanDefinitionException {
+    void addBeanDefinition(BeanDefinition def) throws BeanDefinitionException {
         if (beanDefinitions.put(def.getName(), def) != null) {
             throw new BeanDefinitionException("Duplicate bean name: " + def.getName());
         }
@@ -502,11 +556,17 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
                 }
                 Class<?> beanType = getBeanType(def, method);
                 ClassMetaData beanMetaData = new DefaultClassMetaData(beanType);
-                BeanDefinition beanDefinition = new BeanDefinition(beanMetaData, method, def.getName());
-                addBeanDefinitions(beanDefinition);
+                Bean beanAnnotation = method.getAnnotation(Bean.class);
+                String beanName = beanAnnotation.value();
+                if (Strings.isNullOrEmpty(beanAnnotation.value())) {
+                    beanName = StringUtils.uncapitalize(beanType.getSimpleName());
+                }
+                BeanDefinition beanDefinition = new BeanDefinition(beanName, beanMetaData, method, def.getName(), beanAnnotation.initMethod(), beanAnnotation.destroyMethod());
+                addBeanDefinition(beanDefinition);
             }
         }
     }
+
 
     private static Class<?> getBeanType(BeanDefinition def, Method method) throws BeanDefinitionException {
         Class<?> beanClass = method.getReturnType();
@@ -526,16 +586,16 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
      * @return {@link Set}<{@link String}> 所有Bean的Class类型
      */
     private Set<String> scanForClassNames(Class<?> configClass) {
-        List<String> scanPackages = new ArrayList<>();
+        Set<String> scanPackages = new HashSet<>();
         scanPackages.add(SPRING_SCAN_PATH);
         ClassMetaData classMetaData = new DefaultClassMetaData(configClass);
         if (classMetaData.hasAnnotation(ComponentScans.class)) {
-            ComponentScans componentScans = classMetaData.getAnnotation(ComponentScans.class);
+            ComponentScans componentScans = classMetaData.getAnnotations(ComponentScans.class).getFirst();
             for (ComponentScan componentScan : componentScans.value()) {
                 scanPackages.addAll(Arrays.asList(componentScan.value()));
             }
         } else if (classMetaData.hasAnnotation(ComponentScan.class)) {
-            scanPackages.addAll(Arrays.asList(classMetaData.getAnnotation(ComponentScan.class).value()));
+            scanPackages.addAll(Arrays.asList(classMetaData.getAnnotations(ComponentScan.class).getFirst().value()));
         } else {
             scanPackages.add(configClass.getPackageName());
         }
@@ -590,7 +650,7 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     @Override
     @SuppressWarnings("unchecked")
     public <T> T getBean(Class<T> requiredType) {
-        BeanDefinition def = findBeanDefinition(requiredType);
+        BeanDefinition def = findRequiredBeanDefinition(requiredType);
         if (def == null) {
             throw new NoSuchBeanDefinitionException("No bean defined with type '" + requiredType + "'.");
         }
@@ -609,19 +669,6 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     }
 
 
-    @SuppressWarnings("unchecked")
-    public <T> List<T> getBeanDefinitions(Class<T> requiredType) {
-        List<BeanDefinition> defs = findBeanDefinitions(requiredType);
-        if (defs.isEmpty()) {
-            return List.of();
-        }
-        List<T> list = new ArrayList<>(defs.size());
-        for (BeanDefinition def : defs) {
-            list.add((T) def.getInstance());
-        }
-        return list;
-    }
-
     @Override
     public String[] getBeanNames() {
         return this.beanDefinitionNames.toArray(new String[0]);
@@ -635,18 +682,31 @@ public class AnnotationConfigApplicationContext implements ApplicationContext {
     @Override
     public void close() {
         out.println("Closing " + this.getClass().getName() + "...");
-        this.beanDefinitions.values().forEach(def -> {
-            ClassMetaData metaData = new DefaultClassMetaData(def.getBeanClass());
-            Method[] methods = metaData.getMethodsByAnnotation(PreDestroy.class);
-            for (Method method : methods) {
+        destroyBeans();
+        this.beans.clear();
+        this.beanDefinitions.clear();
+        out.println(this.getClass().getName() + " closed.");
+        ApplicationContextUtils.setApplicationContext(null);
+    }
+
+    private void destroyBeans() {
+        for (BeanDefinition def : this.beanDefinitions.values()) {
+            Object object = getOriginTarget(def.getName(), def.getInstance());
+            if (def.getDestroyMethod()!=null){
                 try {
-                    method.invoke(def.getInstance());
+                    def.getDestroyMethod().invoke(object);
                 } catch (ReflectiveOperationException e) {
-                    throw new BeanDestroyException(e);
+                    throw new BeanInitializingException("Error destroying bean with name '" + def.getName() + "' through @PreDestroy method '" + def.getDestroyMethod().toGenericString() + "': " + e.getMessage(), e);
                 }
             }
-        });
-        this.beanDefinitions.clear();
-        out.println("" + this.getClass().getName() + " closed.");
+            if (!Strings.isNullOrEmpty(def.getDestroyMethodName())) {
+                try {
+                    Method method = def.getBeanClass().getMethod(def.getDestroyMethodName());
+                    method.invoke(def.getInstance());
+                } catch (ReflectiveOperationException e) {
+                    throw new BeanInitializingException("Error destroying bean with name '" + def.getName() + "' through destroy-method '" + def.getDestroyMethodName() + "': " + e.getMessage(), e);
+                }
+            }
+        }
     }
 }

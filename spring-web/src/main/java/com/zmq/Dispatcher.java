@@ -141,7 +141,7 @@ public class Dispatcher {
         try {
             result = this.handlerMethod.invoke(this.controller, args);
         } catch (ReflectiveOperationException e) {
-            throw new ServerErrorException("A failure has been happened in invoking "+this.handlerMethod.toGenericString()+": "+e);
+            throw new ServerErrorException("A failure has been happened in invoking "+this.handlerMethod.toGenericString(),e);
         }
         if (this.returnVoid){
             return null;

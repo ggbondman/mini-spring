@@ -3,7 +3,6 @@ package com.zmq.config;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zmq.JdbcTemplate;
-import com.zmq.annotation.Autowired;
 import com.zmq.annotation.Bean;
 import com.zmq.annotation.Configuration;
 import com.zmq.annotation.Value;
@@ -42,7 +41,7 @@ public class JdbcConfiguration {
     }
 
     @Bean
-    public JdbcTemplate jdbcTemplate(@Autowired DataSource dataSource) {
+    public JdbcTemplate jdbcTemplate(DataSource dataSource) {
         return new JdbcTemplate(dataSource);
     }
 

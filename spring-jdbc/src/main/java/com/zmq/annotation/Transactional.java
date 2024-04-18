@@ -5,10 +5,9 @@ import java.lang.annotation.*;
 /**
  * @author zmq
  */
-@Target({ElementType.METHOD,ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.TYPE,ElementType.METHOD})
 @Documented
-@Inherited
-public @interface Around {
-    Class<?> value();
+public @interface Transactional {
+
 }

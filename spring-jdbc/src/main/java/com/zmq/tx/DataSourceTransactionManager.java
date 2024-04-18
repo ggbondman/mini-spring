@@ -1,16 +1,17 @@
 package com.zmq.tx;
 
-import com.zmq.annotation.Autowired;
 import com.zmq.annotation.Transactional;
 import com.zmq.beans.BeanDefinition;
 import com.zmq.context.ApplicationContext;
 import com.zmq.context.ApplicationContextUtils;
 import com.zmq.exception.TransactionException;
+import com.zmq.processor.BeanDefinitionPostProcessor;
 import com.zmq.util.AopUtils;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 
 import javax.sql.DataSource;
+import java.lang.reflect.Method;
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -19,24 +20,20 @@ import static java.lang.System.out;
 /**
  * @author zmq
  */
-public class DataSourceTransactionManager implements PlatformTransactionManager,MethodInterceptor {
+public class DataSourceTransactionManager implements PlatformTransactionManager, MethodInterceptor, BeanDefinitionPostProcessor {
     static final ThreadLocal<TransactionStatus> transactionStatus = new ThreadLocal<>();
 
-    private final DataSource dataSource;
+    private DataSource dataSource;
 
-    public DataSourceTransactionManager(@Autowired DataSource dataSource) {
-        this.dataSource = dataSource;
-        ApplicationContext applicationContext = ApplicationContextUtils.getApplicationContext();
-        for (BeanDefinition def : applicationContext.getAllBeanDefinitions()) {
-            if (def.getBeanClass().isAnnotationPresent(Transactional.class)){
-                AopUtils.registerAdvisor(new TransactionAdvisor(def.getBeanClass(),this));
-            }
-        }
-    }
+
 
     @Override
     public Object invoke(MethodInvocation invocation) throws Throwable {
         TransactionStatus ts = transactionStatus.get();
+        ApplicationContext applicationContext = ApplicationContextUtils.getApplicationContext();
+        if (this.dataSource==null) {
+            this.dataSource = applicationContext.getBean("dataSource", DataSource.class);
+        }
         if (ts == null) {
             // start new transaction:
             try (Connection connection = dataSource.getConnection()) {
@@ -50,7 +47,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager,
                     connection.commit();
                     return r;
                 } catch (Exception e) {
-                    out.println("will rollback transaction for caused exception: "+e.getCause() == null ? "null" : e.getCause().getClass().getName());
+                    out.println("will rollback transaction for caused exception: " + (e.getCause() == null ? "null" : e.getCause().getClass().getName()));
                     TransactionException te = new TransactionException(e.getCause());
                     try {
                         connection.rollback();
@@ -68,6 +65,19 @@ public class DataSourceTransactionManager implements PlatformTransactionManager,
         } else {
             // join current transaction:
             return invocation.proceed();
+        }
+    }
+
+    @Override
+    public void invokeBeanDefinitionPostProcessor(BeanDefinition def) {
+        if (def.getBeanClass().isAnnotationPresent(Transactional.class)) {
+            AopUtils.registerAdvisor(new TransactionAdvisor(def.getBeanClass(), this));
+        }else {
+            for (Method method : def.getBeanClass().getMethods()) {
+                if (method.isAnnotationPresent(Transactional.class)) {
+                    AopUtils.registerAdvisor(new TransactionAdvisor(method, this));
+                }
+            }
         }
     }
 }

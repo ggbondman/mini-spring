@@ -10,22 +10,13 @@ import java.util.List;
  */
 public interface AnnotationMetaData {
 
-    boolean hasDirectAnnotation(Class<?> clazz);
 
     boolean hasAnnotation(Class<?> clazz);
-
-    <A extends Annotation> A getDirectAnnotation(Class<A> clazz);
-
     <A extends Annotation> A getAnnotation(Class<A> clazz);
-
     <A extends Annotation> List<A> getAnnotations(Class<A> clazz);
     <A extends Annotation> boolean hasMethodAnnotation(Class<A> clazz);
     <A extends Annotation> Method[] getMethodsByAnnotation(Class<A> clazz);
     <A extends Annotation> boolean hasFieldAnnotation(Class<A> clazz);
     <A extends Annotation> Field[] getFieldsByAnnotation(Class<A> clazz);
-
-    <A extends Annotation> List<Annotation> getAnnotationsDecoratedBy(Class<A> clazz);
-
-
 
 }

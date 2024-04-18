@@ -98,7 +98,6 @@ public class PropertyResolver {
 
     @Nullable
     public <T> T getProperty(String key, Class<T> targetType) {
-
         String value = getProperty(key);
         if (value != null) {
             return convert(value, targetType);

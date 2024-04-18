@@ -1,6 +1,6 @@
 package com.zmq.beans;
 
-import com.zmq.annotation.Bean;
+import com.google.common.base.Strings;
 import com.zmq.annotation.Configuration;
 import com.zmq.annotation.Order;
 import com.zmq.annotation.Primary;
@@ -9,7 +9,6 @@ import com.zmq.processor.BeanPostProcessor;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Data;
-import org.apache.commons.lang3.StringUtils;
 
 import java.lang.reflect.Method;
 
@@ -56,52 +55,42 @@ public class BeanDefinition {
 
     boolean beanPostProcessor;
     /**
-     *  init方法名
+     * init方法名
      */
     String initMethodName;
     /**
-     *  init方法
+     * init方法
      */
     Method initMethod;
     /**
-     *  destroy方法名
+     * destroy方法名
      */
     String destroyMethodName;
     /**
-     *  destroy方法
+     * destroy方法
      */
     Method destroyMethod;
 
 
-    public BeanDefinition(ClassMetaData classMetaData) {
-        this.name = StringUtils.uncapitalize(classMetaData.getClassName());
+    public BeanDefinition(String beanName, ClassMetaData classMetaData) {
+        this.name = beanName;
         this.beanClass = classMetaData.getIntrospectedClass();
         this.beanClassName = this.beanClass.getName();
-        this.order = classMetaData.hasAnnotation(Order.class)?classMetaData.getAnnotation(Order.class).value():0;
+        this.order = classMetaData.hasAnnotation(Order.class) ? classMetaData.getAnnotations(Order.class).getFirst().value() : 0;
         this.primary = classMetaData.hasAnnotation(Primary.class);
         this.configuration = classMetaData.hasAnnotation(Configuration.class);
         this.beanPostProcessor = BeanPostProcessor.class.isAssignableFrom(classMetaData.getIntrospectedClass());
         this.beanDefinitionPostProcessor = BeanDefinitionPostProcessor.class.isAssignableFrom(classMetaData.getIntrospectedClass());
-        this.initMethod = classMetaData.hasMethodAnnotation(PostConstruct.class)?classMetaData.getMethodsByAnnotation(PostConstruct.class)[0]:null;
-        this.destroyMethod = classMetaData.hasMethodAnnotation(PreDestroy.class)?classMetaData.getMethodsByAnnotation(PreDestroy.class)[0]:null;
-
+        this.initMethod = classMetaData.hasMethodAnnotation(PostConstruct.class) ? classMetaData.getMethodsByAnnotation(PostConstruct.class)[0] : null;
+        this.destroyMethod = classMetaData.hasMethodAnnotation(PreDestroy.class) ? classMetaData.getMethodsByAnnotation(PreDestroy.class)[0] : null;
     }
 
-    public BeanDefinition(ClassMetaData classMetaData,Method factoryMethod,String factoryBeanName) {
-        this(classMetaData);
-
-        this.name = getBeanName(factoryMethod);
+    public BeanDefinition(String beanName, ClassMetaData classMetaData, Method factoryMethod, String factoryBeanName,String initMethodName,String destroyMethodName) {
+        this(beanName, classMetaData);
         this.factoryMethod = factoryMethod;
         this.factoryBeanName = factoryBeanName;
-    }
-
-    private String getBeanName(Method factoryMethod){
-        Bean bean = factoryMethod.getAnnotation(Bean.class);
-        String name = bean.value();
-        if (name.isEmpty()) {
-            name = factoryMethod.getName();
-        }
-        return name;
+        this.initMethodName = Strings.emptyToNull(initMethodName);
+        this.destroyMethodName = Strings.emptyToNull(destroyMethodName);
     }
 
 

@@ -1,7 +1,7 @@
 package com.zmq;
 
 import com.zmq.annotation.Autowired;
-import com.zmq.annotation.Service;
+import com.zmq.annotation.Component;
 import com.zmq.annotation.Transactional;
 
 import java.util.List;
@@ -9,8 +9,9 @@ import java.util.List;
 /**
  * @author zmq
  */
-@Service
+
 @Transactional
+@Component
 public class TestService {
 
     private JdbcTemplate jdbcTemplate;

@@ -13,9 +13,6 @@ public interface ConfigurableApplicationContext extends ApplicationContext{
     List<BeanDefinition> findBeanDefinitions(Class<?> type);
 
     @Nullable
-    BeanDefinition findBeanDefinition(Class<?> type);
-
-    @Nullable
     BeanDefinition findBeanDefinition(String name);
 
     @Nullable

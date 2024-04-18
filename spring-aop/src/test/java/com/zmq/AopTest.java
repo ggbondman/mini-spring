@@ -1,6 +1,7 @@
 package com.zmq;
 
 import com.zmq.annotation.Component;
+import com.zmq.annotation.EnableAspectJAutoProxy;
 import com.zmq.context.AnnotationConfigApplicationContext;
 import com.zmq.controller.TestController;
 import com.zmq.property.PropertyResolver;
@@ -12,6 +13,7 @@ import java.util.Properties;
  * @author zmq
  */
 @Component
+@EnableAspectJAutoProxy
 public class AopTest {
 
     @Test

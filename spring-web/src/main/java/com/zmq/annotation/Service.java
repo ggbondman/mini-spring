@@ -8,7 +8,8 @@ import java.lang.annotation.*;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE})
-@Inherited
 @Component
 public @interface Service {
+
+    String value() default "";
 }

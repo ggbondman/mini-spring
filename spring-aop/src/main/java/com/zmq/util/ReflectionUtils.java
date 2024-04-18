@@ -15,8 +15,6 @@ import java.util.Map;
  * @author zmq
  */
 public abstract class ReflectionUtils {
-
-
     public static final Map<Class<?>, AdviceType> annotationTypeMap = Map.of(
             Pointcut.class, AdviceType.Pointcut, //
             Around.class, AdviceType.Around, //

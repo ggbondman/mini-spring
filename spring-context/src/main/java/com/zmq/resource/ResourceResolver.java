@@ -69,10 +69,7 @@ public class ResourceResolver {
     }
 
     Path jarUriToPath(String basePackagePath, URI jarUri) throws IOException {
-        if (FILE_SYSTEM == null) {
-            FILE_SYSTEM = FileSystems.newFileSystem(jarUri, Map.of());
-        }
-        return FILE_SYSTEM.getPath(basePackagePath);
+        return FileSystems.newFileSystem(jarUri, Map.of()).getPath(basePackagePath);
     }
 
     <R> void scanFile(boolean isJar, String base, Path root, List<R> collector, Function<Resource, R> mapper) throws IOException {

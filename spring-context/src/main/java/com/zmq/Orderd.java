@@ -1,4 +1,4 @@
-package com.zmq.annotation;
+package com.zmq;
 
 /**
  * @author zmq

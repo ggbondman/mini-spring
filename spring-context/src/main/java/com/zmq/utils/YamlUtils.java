@@ -70,19 +70,20 @@ public class YamlUtils {
      *      "app.title":"Spring Framework"
      * }
      * </pre></blockquote>
+     *
      * @param source yaml格式的Map
      * @param prefix 转化后的key的前缀
      * @param plain  转化后的Map
      */
     @SuppressWarnings("unchecked")
     private static void convertTo(Map<String, Object> source, String prefix, Map<String, Object> plain) {
-        if (source==null){
+        if (source == null) {
             return;
         }
         for (String key : source.keySet()) {
             Object value = source.get(key);
             if (value instanceof Map map) {
-                convertTo((Map<String, Object>) map, prefix +"."+ key+".", plain);
+                convertTo((Map<String, Object>) map, prefix + key + ".", plain);
             } else if (value instanceof List) {
                 plain.put(prefix + key, value);
             } else {

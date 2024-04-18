@@ -10,6 +10,7 @@ import org.aspectj.lang.annotation.Aspect;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,10 +21,17 @@ import static com.zmq.util.ReflectionUtils.*;
  */
 public class AopUtils {
 
-    private static final List<Advisor> advisors = new ArrayList<>();
+    private static final List<Advisor> ADVISORS = new ArrayList<>();
+
+    public static boolean isProxy(Object object){
+        Class<?> clazz = object.getClass();
+        return Proxy.isProxyClass(clazz) ||
+                clazz.getName().contains("$$");
+    }
+
 
     public static List<Advisor> getAdvisors(){
-        return advisors;
+        return ADVISORS;
     }
 
     public static void registerAdvisors(Class<?> clazz){
@@ -32,15 +40,15 @@ public class AopUtils {
             for (Method method : getAdvisorMethods(clazz)) {
                 Advisor advisor = getAdvisor(method, clazz);
                 if (advisor!=null){
-                    advisors.add(advisor);
+                    ADVISORS.add(advisor);
                 }
             }
         }
-        advisors.sort(advisorComparator);
+        ADVISORS.sort(advisorComparator);
     }
     public static void registerAdvisor(Advisor advisor){
-        advisors.add(advisor);
-        advisors.sort(advisorComparator);
+        ADVISORS.add(advisor);
+        ADVISORS.sort(advisorComparator);
     }
 
     private static Advisor getAdvisor(Method method, Class<?> clazz) {

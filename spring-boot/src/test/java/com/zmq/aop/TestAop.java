@@ -1,4 +1,4 @@
-package com.zmq.aspect;
+package com.zmq.aop;
 
 import com.zmq.annotation.Component;
 import org.aspectj.lang.JoinPoint;
@@ -10,16 +10,16 @@ import static java.lang.System.out;
 /**
  * @author zmq
  */
-@Aspect
 @Component
-public class TestAspect {
+@Aspect
+public class TestAop {
 
     @Pointcut("execution (* com.zmq.controller.*.*(..))")
     public void test(){
 
     }
 
-    @Before("execution (* com.zmq.controller.*.*(..))")
+    @Before("test()")
     public void before(JoinPoint joinPoint){
         out.println("进入before：Class Method   : " + joinPoint.getSignature().getDeclaringTypeName()+" "+joinPoint.getSignature().getName());
     }
@@ -38,13 +38,14 @@ public class TestAspect {
         out.println("进入after："+ joinPoint.getSignature().getDeclaringTypeName());
     }
 
-    @AfterReturning("execution (* com.zmq.controller.*.*(..))")
+    @AfterReturning("test()")
     public void afterReturning(JoinPoint joinPoint,Object returnValue) throws Throwable {
         out.println("进入afterReturning："+ returnValue);
     }
 
-    @AfterThrowing("execution (* com.zmq.controller.*.*(..))")
+    @AfterThrowing("test()")
     public void afterThrowing(JoinPoint joinPoint,Throwable ex) throws Throwable {
         out.println("进入afterThrowing："+ ex);
     }
+
 }
